@@ -160,6 +160,12 @@ let%expect_test "patching a deleted file" =
     File foo.ml not found |}]
 ;;
 
+let censor =
+  String.map ~f:(function
+    | '0' .. '9' | 'a' .. 'f' -> 'X'
+    | c -> c)
+;;
+
 let%expect_test "Using a patch from 'diff' with a timestamp" =
   try
     test [ "foo.ml", "This is wrong\n" ] ("foo.patch", unified);
@@ -167,7 +173,21 @@ let%expect_test "Using a patch from 'diff' with a timestamp" =
     [%expect.unreachable]
   with
   | Dune_util.Report_error.Already_reported ->
-    if String.ends_with ~suffix:"No such file or directory\n" [%expect.output]
-    then [%expect ""]
-    else [%expect.unreachable]
+    (match String.split ~on:' ' [%expect.output] with
+     | err :: path :: rest1 ->
+       (match String.split ~on:'_' path with
+        | b :: dir1 :: d :: dir2 :: rest2 ->
+          let censored1 = censor dir1 in
+          let censored2 = censor dir2 in
+          let path2 =
+            String.concat ~sep:"_" (b :: censored1 :: d :: censored2 :: rest2)
+          in
+          let out = String.concat ~sep:" " (err :: path2 :: rest1) in
+          print_endline out;
+          [%expect
+            {|
+            Error: /tmp/build_XXXXXX_dune/dune_XXXXXX_patch_test/foo.ml	2024-08-29
+            17:38:00.243088256 +0200: No such file or directory |}]
+        | _ -> [%expect.unreachable])
+     | _ -> [%expect.unreachable])
 ;;
