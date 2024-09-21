@@ -68,7 +68,7 @@ struct
   let lookup_impl ~rule_digest ~targets =
     match config with
     | Disabled -> Fiber.return (Hit_or_miss.Miss Miss_reason.Cache_disabled)
-    | Enabled { storage_mode = mode; reproducibility_check } ->
+    | Enabled { storage_mode = mode; reproducibility_check; cache_strategy = _ } ->
       (match Config.Reproducibility_check.sample reproducibility_check with
        | true ->
          (* CR-someday amokhov: Here we re-execute the rule, as in Jenga. To make
@@ -277,8 +277,8 @@ struct
     : Digest.t Targets.Produced.t Fiber.t
     =
     match config with
-    | Enabled { storage_mode = mode; reproducibility_check = _ }
-      when can_go_in_shared_cache ->
+    | Enabled { storage_mode = mode; cache_strategy; reproducibility_check = _ }
+      when cache_strategy = Config.Strategy.Greedy || can_go_in_shared_cache ->
       let open Fiber.O in
       let+ produced_targets_with_digests =
         try_to_store_to_shared_cache ~mode ~rule_digest ~produced_targets ~action

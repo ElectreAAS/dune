@@ -38,9 +38,35 @@ module Reproducibility_check = struct
   ;;
 end
 
+module Strategy = struct
+  type t =
+    | Safe
+    | Greedy
+
+  let default = Safe
+  let all = [ "safe", Safe; "greedy", Greedy ]
+
+  let to_string = function
+    | Safe -> "safe"
+    | Greedy -> "greedy"
+  ;;
+
+  let to_dyn = function
+    | Safe -> Dyn.Variant ("Safe", [])
+    | Greedy -> Dyn.Variant ("Greedy", [])
+  ;;
+end
+
 type t =
   | Disabled
   | Enabled of
-      { storage_mode : Dune_cache_storage.Mode.t
+      { cache_strategy : Strategy.t
+      ; storage_mode : Dune_cache_storage.Mode.t
       ; reproducibility_check : Reproducibility_check.t
       }
+
+let to_string = function
+  | Disabled -> "disabled"
+  | Enabled { cache_strategy; _ } ->
+    "enabled with strategy : " ^ Strategy.to_string cache_strategy
+;;

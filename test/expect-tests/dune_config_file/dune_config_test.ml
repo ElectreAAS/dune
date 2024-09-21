@@ -45,7 +45,7 @@ let%expect_test "cache-storage-mode copy" =
     ; concurrency = Fixed 1
     ; terminal_persistence = Clear_on_rebuild
     ; sandboxing_preference = []
-    ; cache_enabled = Enabled
+    ; cache_strategy = Some Safe
     ; cache_reproducibility_check = Skip
     ; cache_storage_mode = Some Copy
     ; action_stdout_on_success = Print
@@ -57,7 +57,7 @@ let%expect_test "cache-storage-mode copy" =
         }
     ; experimental = []
     }
- |}]
+    |}]
 ;;
 
 let%expect_test "cache-storage-mode hardlink" =
@@ -68,7 +68,7 @@ let%expect_test "cache-storage-mode hardlink" =
     ; concurrency = Fixed 1
     ; terminal_persistence = Clear_on_rebuild
     ; sandboxing_preference = []
-    ; cache_enabled = Enabled
+    ; cache_strategy = Some Safe
     ; cache_reproducibility_check = Skip
     ; cache_storage_mode = Some Hardlink
     ; action_stdout_on_success = Print
@@ -80,5 +80,5 @@ let%expect_test "cache-storage-mode hardlink" =
         }
     ; experimental = []
     }
- |}]
+    |}]
 ;;

@@ -408,16 +408,16 @@ let shared_with_config_file =
       & opt (some (enum modes)) None
       & info [ "terminal-persistence" ] ~docs ~docv:"MODE" ~doc)
   and+ display = display_term
-  and+ cache_enabled =
+  and+ cache_strategy =
     let doc =
       Printf.sprintf
-        "Enable or disable Dune cache (%s). Default is `%s'."
-        (Arg.doc_alts_enum Config.Toggle.all)
-        (Config.Toggle.to_string Dune_config.default.cache_enabled)
+        "Dune cache strategy (%s). Default is `%s'."
+        (Arg.doc_alts_enum Dune_config.Cache.Strategy.all)
+        (Dune_config.Cache.Strategy.to_string Dune_config.default.cache_strategy)
     in
     Arg.(
       value
-      & opt (some (enum Config.Toggle.all)) None
+      & opt (some (enum Dune_config.Cache.Strategy.all)) None
       & info [ "cache" ] ~docs ~env:(Cmd.Env.info ~doc "DUNE_CACHE") ~doc)
   and+ cache_storage_mode =
     let doc =
@@ -480,7 +480,7 @@ let shared_with_config_file =
   ; concurrency
   ; sandboxing_preference = Option.map sandboxing_preference ~f:(fun x -> [ x ])
   ; terminal_persistence
-  ; cache_enabled
+  ; cache_strategy
   ; cache_reproducibility_check =
       Option.map
         cache_check_probability
@@ -1235,15 +1235,16 @@ let init (builder : Builder.t) =
      |> Dune_rules.Workspace.update_execution_parameters w);
   Dune_rules.Global.init ~capture_outputs:c.builder.capture_outputs;
   let cache_config =
-    match config.cache_enabled with
-    | `Disabled -> Dune_cache.Config.Disabled
-    | `Enabled ->
+    match config.cache_strategy with
+    | None -> Dune_cache.Config.Disabled
+    | Some cache_strategy ->
       Enabled
-        { storage_mode = Option.value config.cache_storage_mode ~default:Hardlink
+        { cache_strategy
+        ; storage_mode = Option.value config.cache_storage_mode ~default:Hardlink
         ; reproducibility_check = config.cache_reproducibility_check
         }
   in
-  Log.info [ Pp.textf "Shared cache: %s" (Config.Toggle.to_string config.cache_enabled) ];
+  Log.info [ Pp.textf "Shared cache: %s" (Dune_cache.Config.to_string cache_config) ];
   Log.info
     [ Pp.textf
         "Shared cache location: %s"

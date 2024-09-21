@@ -41,10 +41,24 @@ module Reproducibility_check : sig
   val to_dyn : t -> Dyn.t
 end
 
+module Strategy : sig
+  type t =
+    | Safe
+    | Greedy
+
+  val default : t
+  val all : (string * t) list
+  val to_string : t -> string
+  val to_dyn : t -> Dyn.t
+end
+
 (** All configuration settings of Dune's local and cloud (in future) caches. *)
 type t =
   | Disabled
   | Enabled of
-      { storage_mode : Dune_cache_storage.Mode.t
+      { cache_strategy : Strategy.t
+      ; storage_mode : Dune_cache_storage.Mode.t
       ; reproducibility_check : Reproducibility_check.t
       }
+
+val to_string : t -> string

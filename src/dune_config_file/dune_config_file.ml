@@ -111,6 +111,27 @@ module Dune_config = struct
   end
 
   module Cache = struct
+    module Strategy = struct
+      type t = Dune_cache.Config.Strategy.t option
+
+      let all =
+        ("disabled", None)
+        :: ("enabled", Some Dune_cache.Config.Strategy.Greedy)
+        :: List.map
+             ~f:(fun (name, strat) -> name, Some strat)
+             Dune_cache.Config.Strategy.all
+      ;;
+
+      let decode = enum all
+
+      let to_string = function
+        | None -> "disabled"
+        | Some mode -> Dune_cache.Config.Strategy.to_string mode
+      ;;
+
+      let to_dyn = Dyn.option Dune_cache.Config.Strategy.to_dyn
+    end
+
     module Transport_deprecated = struct
       type t =
         | Daemon
@@ -153,7 +174,7 @@ module Dune_config = struct
       ; concurrency : Concurrency.t field
       ; terminal_persistence : Terminal_persistence.t field
       ; sandboxing_preference : Sandboxing_preference.t field
-      ; cache_enabled : Config.Toggle.t field
+      ; cache_strategy : Cache.Strategy.t field
       ; cache_reproducibility_check : Dune_cache.Config.Reproducibility_check.t field
       ; cache_storage_mode : Cache.Storage_mode.t field
       ; action_stdout_on_success : Action_output_on_success.t field
@@ -178,7 +199,7 @@ module Dune_config = struct
       ; concurrency = field a.concurrency b.concurrency
       ; terminal_persistence = field a.terminal_persistence b.terminal_persistence
       ; sandboxing_preference = field a.sandboxing_preference b.sandboxing_preference
-      ; cache_enabled = field a.cache_enabled b.cache_enabled
+      ; cache_strategy = field a.cache_strategy b.cache_strategy
       ; cache_reproducibility_check =
           field a.cache_reproducibility_check b.cache_reproducibility_check
       ; cache_storage_mode = field a.cache_storage_mode b.cache_storage_mode
@@ -205,7 +226,7 @@ module Dune_config = struct
       ; concurrency
       ; terminal_persistence
       ; sandboxing_preference
-      ; cache_enabled
+      ; cache_strategy
       ; cache_reproducibility_check
       ; cache_storage_mode
       ; action_stdout_on_success
@@ -220,7 +241,7 @@ module Dune_config = struct
         ; "terminal_persistence", field Terminal_persistence.to_dyn terminal_persistence
         ; ( "sandboxing_preference"
           , field (Dyn.list Sandbox_mode.to_dyn) sandboxing_preference )
-        ; "cache_enabled", field Config.Toggle.to_dyn cache_enabled
+        ; "cache_strategy", field Cache.Strategy.to_dyn cache_strategy
         ; ( "cache_reproducibility_check"
           , field
               Dune_cache.Config.Reproducibility_check.to_dyn
@@ -249,7 +270,7 @@ module Dune_config = struct
       ; concurrency = None
       ; terminal_persistence = None
       ; sandboxing_preference = None
-      ; cache_enabled = None
+      ; cache_strategy = None
       ; cache_reproducibility_check = None
       ; cache_storage_mode = None
       ; action_stdout_on_success = None
@@ -316,7 +337,7 @@ module Dune_config = struct
     ; concurrency = (if Execution_env.inside_dune then Fixed 1 else Auto)
     ; terminal_persistence = Clear_on_rebuild
     ; sandboxing_preference = []
-    ; cache_enabled = `Enabled
+    ; cache_strategy = Some Dune_cache.Config.Strategy.default
     ; cache_reproducibility_check = Skip
     ; cache_storage_mode = Some (Dune_cache_storage.Mode.default ())
     ; action_stdout_on_success = Print
@@ -342,7 +363,7 @@ module Dune_config = struct
       field_o "terminal-persistence" (1, 0) Terminal_persistence.decode
     and+ sandboxing_preference =
       field_o "sandboxing_preference" (1, 0) Sandboxing_preference.decode
-    and+ cache_enabled = field_o "cache" (2, 0) (enum Config.Toggle.all)
+    and+ cache_strategy = field_o "cache" (2, 0) Cache.Strategy.decode
     and+ _cache_transport_unused_since_3_0 =
       field_o
         "cache-transport"
@@ -405,7 +426,7 @@ module Dune_config = struct
     ; concurrency
     ; terminal_persistence
     ; sandboxing_preference
-    ; cache_enabled
+    ; cache_strategy
     ; cache_reproducibility_check
     ; cache_storage_mode
     ; action_stdout_on_success
