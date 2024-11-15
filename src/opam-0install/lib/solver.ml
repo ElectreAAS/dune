@@ -1,6 +1,7 @@
 module Make (Monad : S.Monad) (Context : S.CONTEXT with type 'a monad = 'a Monad.t) =
 struct
   open Monad.O
+  open Pp.O
 
   type 'a monad = 'a Monad.t
 
@@ -36,7 +37,7 @@ struct
     | None -> Error req
   ;;
 
-  let pp_short f (impl : Input.impl) = Input.pp_impl f impl
+  let pp_short = Input.pp_impl
 
   let rec partition f = function
     | [] -> [], []
@@ -47,8 +48,8 @@ struct
        | `Right z -> ys, z :: zs)
   ;;
 
-  let pp_rolemap ~verbose f reasons =
-    let short, long =
+  let pp_rolemap ~verbose reasons =
+    let good, bad =
       reasons
       |> Solver.Output.RoleMap.bindings
       |> partition (fun (_role, component) ->
@@ -56,14 +57,11 @@ struct
         | Some impl when Diagnostics.Component.notes component = [] -> `Left impl
         | _ -> `Right component)
     in
-    let pp_item f c = Fmt.pf f "- @[%a@]" (Diagnostics.Component.pp ~verbose) c in
-    Fmt.pf
-      f
-      "Selected: @[<hov>%a@]@,%a"
-      (Fmt.(list ~sep:sp) pp_short)
-      short
-      (Fmt.(list ~sep:cut) pp_item)
-      long
+    let pp_bad = Diagnostics.Component.pp ~verbose in
+    Pp.paragraph "Selected: "
+    ++ Pp.hovbox (Pp.concat_map ~sep:Pp.space good ~f:pp_short)
+    ++ Pp.cut
+    ++ Pp.enumerate bad ~f:pp_bad
   ;;
 
   let diagnostics_rolemap req =
@@ -71,8 +69,10 @@ struct
   ;;
 
   let diagnostics ?(verbose = false) req =
-    diagnostics_rolemap req
-    >>| Fmt.str "Can't find all required versions.@\n@[<v0>%a@]" (pp_rolemap ~verbose)
+    let+ diag = diagnostics_rolemap req in
+    Pp.paragraph "Can't find all required versions."
+    ++ Pp.cut
+    ++ Pp.vbox (pp_rolemap ~verbose diag)
   ;;
 
   let packages_of_result sels =
