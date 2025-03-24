@@ -111,9 +111,9 @@ let directory_digest_version = 2
 
 let path_with_stats ~allow_dirs path (stats : Stats_for_digest.t) =
   let rec loop path (stats : Stats_for_digest.t) =
+    let executable = Path.Permissions.(test execute stats.st_perm) in
     match stats.st_kind with
     | S_LNK ->
-      let executable = Path.Permissions.test Path.Permissions.execute stats.st_perm in
       Dune_filesystem_stubs.Unix_error.Detailed.catch
         (fun path ->
            let contents = Unix.readlink (Path.to_string path) in
@@ -121,7 +121,6 @@ let path_with_stats ~allow_dirs path (stats : Stats_for_digest.t) =
         path
       |> Result.map_error ~f:(fun x -> Path_digest_error.Unix_error x)
     | S_REG ->
-      let executable = Path.Permissions.test Path.Permissions.execute stats.st_perm in
       Dune_filesystem_stubs.Unix_error.Detailed.catch
         (file_with_executable_bit ~executable)
         path

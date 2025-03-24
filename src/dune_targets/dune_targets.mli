@@ -91,6 +91,7 @@ module Produced : sig
     ; contents : 'a dir_contents
     }
 
+  val empty : 'a t
   val equal : 'a t -> 'a t -> equal:('a -> 'a -> bool) -> bool
 
   module Error : sig
@@ -168,4 +169,11 @@ module Produced : sig
     -> ('b t, (Path.Build.t * 'e) Nonempty_list.t) result
 
   val to_dyn : _ t -> Dyn.t
+  val map : ?d:(Path.Local.t -> unit) -> f:(Path.Local.t -> 'a -> 'b) -> 'a t -> 'b t
+
+  val magic_map
+    :  init:'acc
+    -> f:(Path.Local.t -> ('a * 'b) option -> 'acc -> 'acc)
+    -> ('a * 'b) t
+    -> 'acc * 'a t
 end

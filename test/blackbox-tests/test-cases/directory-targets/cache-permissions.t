@@ -35,22 +35,29 @@ This test relies on a particular umask.
 First build: `d` (with mode 755) and `other` are stored in cache
 
   $ dune build other
+  Before chmod 1a: 444
+  chmod 1a went through
+  Before chmod 1a: 444
+  chmod 1a went through
   building d
-  building other
+  Before chmod 1a: 444
+  chmod 1a went through
+  building otherBefore chmod 1a: 444
+  chmod 1a went through
+
+The chmod command was run, so this is expected
   $ dune_cmd stat permissions _build/default/d
   755
 
-Second build: `d` is restored but the cached `other` depends on a version of
-`d` that does not correspond to what's in `_build`, so `other` gets rebuilt.
-Both versions are stored.
+Second build: `d` is restored and `other` can use it, so no rebuild happens.
 
   $ dune clean
   $ dune build other
+  Before chmod 2: 444
+  Before chmod 2: 444
+  Before chmod 2: 444
   building other
+
+We'll note that the permissions are still set to the umask
   $ dune_cmd stat permissions _build/default/d
   775
-
-Third build: `d` is restored and `other` can use it, so no rebuild happens.
-
-  $ dune clean
-  $ dune build other

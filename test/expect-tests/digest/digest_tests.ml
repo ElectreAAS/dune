@@ -2,7 +2,7 @@ open Stdune
 module Digest = Dune_digest
 
 let%expect_test "directory digest version" =
-  (* If this test fails with a new digest value, make sure to update to update
+  (* If this test fails with a new digest value, make sure to update
      [directory_digest_version] in digest.ml.
 
      The expected value is kept outside of the expect block on purpose so that it

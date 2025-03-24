@@ -166,14 +166,17 @@ module Produced = struct
       (* mapping directory name -> 'a dir_contents *)
     }
 
-  let is_empty_dir_conts { files; subdirs } =
-    Filename.Map.is_empty files && Filename.Map.is_empty subdirs
-  ;;
-
   type 'a t =
     { root : Path.Build.t
     ; contents : 'a dir_contents
     }
+
+  let empty_dir_contents = { files = Filename.Map.empty; subdirs = Filename.Map.empty }
+  let empty = { root = Path.Build.root; contents = empty_dir_contents }
+
+  let is_empty_dir_conts { files; subdirs } =
+    Filename.Map.is_empty files && Filename.Map.is_empty subdirs
+  ;;
 
   let equal
         { root = root1; contents = contents1 }
@@ -235,14 +238,10 @@ module Produced = struct
     ;;
   end
 
-  let empty = { files = Filename.Map.empty; subdirs = Filename.Map.empty }
-
-  (** The call sites ensure that [dir = Path.Build.append_local validated.root local].
-      No need for [local] actually... *)
   let rec contents_of_dir ~file_f (dir : Path.Build.t) : ('a dir_contents, Error.t) result
     =
     let open Result.O in
-    let init = empty in
+    let init = empty_dir_contents in
     match Path.readdir_unsorted_with_kinds (Path.build dir) with
     | Error (Unix.ENOENT, _, _) -> Error (Missing_dir dir)
     | Error e -> Error (Unreadable_dir (dir, e))
@@ -302,15 +301,21 @@ module Produced = struct
       | [ final ], Some payload ->
         { contents with files = Filename.Map.add_exn contents.files final payload }
       | [ final ], None ->
-        { contents with subdirs = Filename.Map.add_exn contents.subdirs final empty }
+        { contents with
+          subdirs = Filename.Map.add_exn contents.subdirs final empty_dir_contents
+        }
       | parent :: rest, _ ->
         let subdirs =
           Filename.Map.update contents.subdirs parent ~f:(fun contents_opt ->
-            Some (aux mb_payload (Option.value contents_opt ~default:empty) rest))
+            Some
+              (aux
+                 mb_payload
+                 (Option.value contents_opt ~default:empty_dir_contents)
+                 rest))
         in
         { contents with subdirs }
     in
-    let init = empty in
+    let init = empty_dir_contents in
     let contents =
       Path.Local.Map.foldi files ~init ~f:(fun file mb_payload contents ->
         let parent = Path.Local.parent_exn file in
@@ -321,7 +326,9 @@ module Produced = struct
           | Some payload ->
             { contents with files = Filename.Map.add_exn contents.files file payload }
           | None ->
-            { contents with subdirs = Filename.Map.add_exn contents.subdirs file empty })
+            { contents with
+              subdirs = Filename.Map.add_exn contents.subdirs file empty_dir_contents
+            })
         else aux mb_payload contents (Path.Local.explode file))
     in
     { root; contents }
@@ -541,11 +548,54 @@ module Produced = struct
     in
     let result =
       try { root; contents = aux root contents } with
-      | Short_circuit -> { root; contents = empty }
+      | Short_circuit -> { root; contents = empty_dir_contents }
     in
     match Nonempty_list.of_list !errors with
     | None -> Ok result
     | Some list -> Error list
+  ;;
+
+  let map ?d ~f { root; contents } =
+    let rec aux path { files; subdirs } =
+      let files =
+        Filename.Map.mapi files ~f:(fun file_name payload ->
+          let file = Path.Local.relative path file_name in
+          f file payload)
+      in
+      let subdirs =
+        Filename.Map.mapi subdirs ~f:(fun dir_name subdir_contents ->
+          let dir = Path.Local.relative path dir_name in
+          Option.iter d ~f:(fun f -> f dir);
+          aux dir subdir_contents)
+      in
+      { files; subdirs }
+    in
+    { root; contents = aux Path.Local.root contents }
+  ;;
+
+  (** Talk about a highly specialized type... *)
+  let magic_map
+        ~(init : 'acc)
+        ~(f : Path.Local.t -> ('a * 'b) option -> 'acc -> 'acc)
+        { root; contents }
+    : 'acc * 'a t
+    =
+    let rec aux path acc { files; subdirs } =
+      let acc, files =
+        Filename.Map.fold_mapi files ~init:acc ~f:(fun file_name acc (digest, perm) ->
+          let file = Path.Local.relative path file_name in
+          f file (Some (digest, perm)) acc, digest)
+      in
+      let acc, subdirs =
+        Filename.Map.fold_mapi subdirs ~init:acc ~f:(fun dir_name acc subdir_contents ->
+          let dir = Path.Local.relative path dir_name in
+          let acc = f dir None acc in
+          aux dir acc subdir_contents)
+      in
+      acc, { files; subdirs }
+    in
+    let result, contents = aux Path.Local.root init contents in
+    result, { root; contents }
   ;;
 
   let to_dyn { root; contents } =

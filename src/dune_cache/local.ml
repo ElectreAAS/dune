@@ -18,28 +18,31 @@ module Store_artifacts_result = struct
       Will_not_store_due_to_non_determinism details
   ;;
 
-  let bind t ~f =
-    match t with
-    | Stored data -> f data
-    | Already_present data -> f data
-    | (Error _ | Will_not_store_due_to_non_determinism _) as res -> res
+  let bind t ~artifacts ~f =
+    match (t : Store_result.t) with
+    | Stored -> f artifacts
+    | Already_present -> f artifacts
+    | Error exn -> Error exn
+    | Will_not_store_due_to_non_determinism details ->
+      Will_not_store_due_to_non_determinism details
   ;;
 end
 
 module Target = struct
-  type t = { executable : bool }
+  type t = { permissions : Unix.file_perm }
 
   let create path =
     match Path.Build.lstat path with
     | { Unix.st_kind = Unix.S_REG; st_perm; _ } ->
-      Path.Build.chmod path ~mode:(Path.Permissions.remove Path.Permissions.write st_perm);
-      let executable = Path.Permissions.test Path.Permissions.execute st_perm in
-      Some { executable }
+      let mode = Path.Permissions.(remove write st_perm) in
+      Path.Build.chmod path ~mode;
+      Some { permissions = mode }
     | { Unix.st_kind = Unix.S_DIR; st_perm; _ } ->
       (* Adding "executable" permissions to directories mean we can traverse them. *)
-      Path.Build.chmod path ~mode:(Path.Permissions.add Path.Permissions.execute st_perm);
-      (* the value of [executable] here is ignored, but [Some] is meaningful. *)
-      Some { executable = true }
+      let mode = Path.Permissions.(add execute st_perm) in
+      Path.Build.chmod path ~mode;
+      (* the value of [permissions] here is ignored, but [Some] is meaningful. *)
+      Some { permissions = mode }
     | (exception Unix.Unix_error _) | _ -> None
   ;;
 end
@@ -81,13 +84,22 @@ module Artifacts = struct
         ~mode
         ~metadata
         ~rule_digest
-        (artifacts : Digest.t Targets.Produced.t)
+        (artifacts : (Digest.t * Unix.file_perm) Targets.Produced.t)
     =
-    let entries =
-      Targets.Produced.to_list_map artifacts ~f:(fun target digest ->
-        { Metadata_entry.path = Path.Local.to_string target; digest })
+    let entries, artifacts =
+      Targets.Produced.magic_map artifacts ~init:[] ~f:(fun target digest_and_perm acc ->
+        let digest, permissions =
+          match digest_and_perm with
+          | Some (digest, permissions) -> Some digest, permissions
+          | None ->
+            ( None
+            , (* FIXME: what permissions do we give directories here? Does it matter? *) 0
+            )
+        in
+        { Metadata_entry.path = Path.Local.to_string target; digest; permissions } :: acc)
     in
     Metadata_file.store ~mode { metadata; entries } ~rule_digest
+    |> Store_artifacts_result.of_store_result ~artifacts
   ;;
 
   (* Step I of [store_skipping_metadata].
@@ -119,14 +131,16 @@ module Artifacts = struct
   (* Step II of [store_skipping_metadata].
 
      Computing digests can be slow, so we do that in parallel. *)
-  let compute_digests_in ~temp_dir ~targets ~compute_digest
-    : Digest.t Targets.Produced.t Or_exn.t Fiber.t
+  let compute_digests_and_perm ~temp_dir ~targets ~compute_digest
+    : (Digest.t * Unix.file_perm) Targets.Produced.t Or_exn.t Fiber.t
     =
     let open Fiber.O in
     Fiber.collect_errors (fun () ->
-      Targets.Produced.parallel_map targets ~f:(fun path { Target.executable } ->
+      Targets.Produced.parallel_map targets ~f:(fun path { Target.permissions } ->
         let file = Path.append_local temp_dir path in
-        compute_digest ~executable file))
+        let executable = Path.Permissions.(test execute permissions) in
+        let+ digest = compute_digest ~executable file in
+        digest, permissions))
     >>| Result.map_error ~f:(function
       | exn :: _ -> exn.Exn_with_backtrace.exn
       | [] -> assert false)
@@ -137,19 +151,22 @@ module Artifacts = struct
     Targets.Produced.foldi
       artifacts
       ~init:Store_result.empty
-      ~f:(fun target digest results ->
-        match digest with
+      ~f:(fun target digest_and_perm results ->
+        match digest_and_perm with
         | None ->
           (* No digest means [target] is a directory, simply ignore it. *)
           results
-        | Some file_digest ->
+        | Some (file_digest, file_perm) ->
           let path_in_temp_dir = Path.append_local temp_dir target in
           let path_in_cache = file_path ~file_digest in
           let store_using_hardlinks () =
             match
               Dune_cache_storage.Util.Optimistically.link
                 ~src:path_in_temp_dir
-                ~dst:path_in_cache
+                ~dst:path_in_cache;
+              Format.printf "Before chmod 1a: %o@." file_perm;
+              Path.chmod path_in_cache ~mode:file_perm;
+              Format.printf "chmod 1a went through@."
             with
             | exception Unix.Unix_error (Unix.EEXIST, _, _) ->
               (* We end up here if the cache already contains an entry for this
@@ -196,7 +213,10 @@ module Artifacts = struct
               (match
                  Dune_cache_storage.Util.Optimistically.rename
                    ~src:path_in_temp_dir
-                   ~dst:path_in_cache
+                   ~dst:path_in_cache;
+                 Format.printf "Before chmod 1b: %o@." file_perm;
+                 Path.chmod path_in_temp_dir ~mode:file_perm;
+                 Format.printf "chmod 1b went through@."
                with
                | exception e -> Error e
                | () -> Stored)
@@ -209,28 +229,30 @@ module Artifacts = struct
           Store_result.combine results result)
   ;;
 
-  let store_skipping_metadata ~mode ~targets ~compute_digest
-    : Store_artifacts_result.t Fiber.t
+  let store_skipping_metadata
+        ~mode
+        ~targets
+        ~compute_digest
+        (* : Store_artifacts_result.t Fiber.t *)
     =
     Dune_cache_storage.with_temp_dir ~suffix:"artifacts" (function
-      | Error exn -> Fiber.return (Store_artifacts_result.Error exn)
+      | Error exn -> Fiber.return (Store_result.Error exn, Targets.Produced.empty)
       | Ok temp_dir ->
         (match store_targets_to ~temp_dir ~targets ~mode with
-         | Error exn -> Fiber.return (Store_artifacts_result.Error exn)
+         | Error exn -> Fiber.return (Store_result.Error exn, Targets.Produced.empty)
          | Ok () ->
-           compute_digests_in ~temp_dir ~targets ~compute_digest
+           compute_digests_and_perm ~temp_dir ~targets ~compute_digest
            >>| (function
-            | Error exn -> Store_artifacts_result.Error exn
+            | Error exn -> Store_result.Error exn, Targets.Produced.empty
             | Ok artifacts ->
               let result = store_to_cache_from ~temp_dir ~mode artifacts in
-              Store_artifacts_result.of_store_result ~artifacts result)))
+              result, artifacts)))
   ;;
 
   let store ~mode ~rule_digest ~compute_digest targets : Store_artifacts_result.t Fiber.t =
-    let+ result = store_skipping_metadata ~mode ~targets ~compute_digest in
-    Store_artifacts_result.bind result ~f:(fun artifacts ->
-      let result = store_metadata ~mode ~rule_digest ~metadata:[] artifacts in
-      Store_artifacts_result.of_store_result ~artifacts result)
+    let+ result, artifacts = store_skipping_metadata ~mode ~targets ~compute_digest in
+    Store_artifacts_result.bind result ~artifacts ~f:(fun artifacts ->
+      store_metadata ~mode ~rule_digest ~metadata:[] artifacts)
   ;;
 
   module File_restore = struct
@@ -269,7 +291,7 @@ module Artifacts = struct
 
     let create_all_or_none
           (mode : Dune_cache_storage.Mode.t)
-          (artifacts : _ Targets.Produced.t)
+          (artifacts : (Dune_digest.t * Unix.file_perm) Targets.Produced.t)
       =
       let unwind = Unwind.make () in
       let rec mk_dir (dir : Path.Local.t) =
@@ -282,16 +304,19 @@ module Artifacts = struct
           Path.mkdir_p path;
           Unwind.push unwind (fun () -> Path.rmdir path))
       in
-      let mk_file file file_digest =
+      let mk_file file (file_digest, perm) =
         let target = Path.Build.append_local artifacts.root file in
         let dst = Path.build target in
         let src = file_path ~file_digest in
         (match mode with
          | Hardlink -> hardlink ~src ~dst
          | Copy -> copy ~src ~dst);
-        Unwind.push unwind (fun () -> Path.Build.unlink_no_err target)
+        Format.printf "Before chmod 2: %o@." perm;
+        Path.chmod dst ~mode:perm;
+        Unwind.push unwind (fun () -> Path.Build.unlink_no_err target);
+        file_digest
       in
-      try Targets.Produced.iteri artifacts ~f:mk_file ~d:mk_dir with
+      try Targets.Produced.map ~d:mk_dir ~f:mk_file artifacts with
       | exn ->
         Unwind.unwind unwind;
         reraise exn
@@ -301,12 +326,14 @@ module Artifacts = struct
   let restore ~mode ~rule_digest ~target_dir =
     Restore_result.bind (list ~rule_digest) ~f:(fun (entries : Metadata_entry.t list) ->
       let artifacts =
-        Path.Local.Map.of_list_map_exn entries ~f:(fun { Metadata_entry.path; digest } ->
-          Path.Local.of_string path, digest)
+        Path.Local.Map.of_list_map_exn
+          entries
+          ~f:(fun { Metadata_entry.path; digest; permissions } ->
+            Path.Local.of_string path, Option.map digest ~f:(fun d -> d, permissions))
         |> Targets.Produced.of_files target_dir
       in
       try
-        File_restore.create_all_or_none mode artifacts;
+        let artifacts = File_restore.create_all_or_none mode artifacts in
         Restored artifacts
       with
       | File_restore.E result ->
