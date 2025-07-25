@@ -57,82 +57,6 @@ module Public = struct
   end
 
   module Promote_many = struct
-    module Compound_user_error = struct
-      type t =
-        { main : User_message.t
-        ; related : User_message.t list
-        }
-
-      let create ~main ~related =
-        let () =
-          List.iter related ~f:(fun (related : User_message.t) ->
-            match related.loc with
-            | Some _ -> ()
-            | None ->
-              Code_error.raise
-                "related messages must have locations"
-                [ "related", String (Stdune.User_message.to_string related) ])
-        in
-        { main; related }
-      ;;
-
-      let sexp =
-        let open Conv in
-        let from { main; related } = main, related in
-        let to_ (main, related) = create ~main ~related in
-        let main = field "main" (required User_message.sexp_without_annots) in
-        let related =
-          field "related" (required (list User_message.sexp_without_annots))
-        in
-        iso (record (both main related)) to_ from
-      ;;
-    end
-
-    module Build_outcome_with_diagnostics = struct
-      type t =
-        | Success
-        | Failure of Compound_user_error.t list
-
-      let sexp =
-        let open Conv in
-        let success = constr "Success" unit (fun () -> Success) in
-        let failure =
-          constr "Failure" (list Compound_user_error.sexp) (fun errors -> Failure errors)
-        in
-        let variants = [ econstr success; econstr failure ] in
-        sum variants (function
-          | Success -> case () success
-          | Failure errors -> case errors failure)
-      ;;
-    end
-
-    module Files_to_promote = struct
-      type t =
-        | All
-        | These of Stdune.Path.Source.t list * (Stdune.Path.Source.t -> unit)
-
-      let on_missing fn =
-        Stdune.User_warning.emit
-          [ Pp.paragraphf
-              "Nothing to promote for %s."
-              (Stdune.Path.Source.to_string_maybe_quoted fn)
-          ]
-      ;;
-
-      let sexp =
-        let open Conv in
-        let to_ = function
-          | [] -> All
-          | paths -> These (List.map ~f:Stdune.Path.Source.of_string paths, on_missing)
-        in
-        let from = function
-          | All -> []
-          | These (paths, _) -> List.map ~f:Stdune.Path.Source.to_string paths
-        in
-        iso (list Path.sexp) to_ from
-      ;;
-    end
-
     let v1 =
       Decl.Request.make_current_gen
         ~req:Files_to_promote.sexp
@@ -153,13 +77,8 @@ module Public = struct
   let shutdown = Shutdown.decl
   let format_dune_file = Format_dune_file.decl
   let promote = Promote.decl
-  let build_dir = Build_dir.decl
-
-  module Compound_user_error = Promote_many.Compound_user_error
-  module Build_outcome_with_diagnostics = Promote_many.Build_outcome_with_diagnostics
-  module Files_to_promote = Promote_many.Files_to_promote
-
   let promote_many = Promote_many.decl
+  let build_dir = Build_dir.decl
 end
 
 module Server_side = struct

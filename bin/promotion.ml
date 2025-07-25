@@ -1,7 +1,7 @@
 open Import
 module Diff_promotion = Promote.Diff_promotion
 
-let files_to_promote ~common files : Diff_promotion.files_to_promote =
+let files_to_promote ~common files : Dune_rpc.Files_to_promote.t =
   match files with
   | [] -> All
   | _ ->

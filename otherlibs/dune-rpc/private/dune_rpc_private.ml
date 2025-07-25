@@ -21,16 +21,8 @@ module Public = struct
     let diagnostics = Procedures.Public.diagnostics.decl
     let format_dune_file = Procedures.Public.format_dune_file.decl
     let promote = Procedures.Public.promote.decl
-    let build_dir = Procedures.Public.build_dir.decl
-
-    module Compound_user_error = Procedures.Public.Compound_user_error
-
-    module Build_outcome_with_diagnostics =
-      Procedures.Public.Build_outcome_with_diagnostics
-
-    module Files_to_promote = Procedures.Public.Files_to_promote
-
     let promote_many = Procedures.Public.promote_many.decl
+    let build_dir = Procedures.Public.build_dir.decl
   end
 
   module Notification = struct
