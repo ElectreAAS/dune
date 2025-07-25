@@ -22,6 +22,15 @@ module Public = struct
     let format_dune_file = Procedures.Public.format_dune_file.decl
     let promote = Procedures.Public.promote.decl
     let build_dir = Procedures.Public.build_dir.decl
+
+    module Compound_user_error = Procedures.Public.Compound_user_error
+
+    module Build_outcome_with_diagnostics =
+      Procedures.Public.Build_outcome_with_diagnostics
+
+    module Files_to_promote = Procedures.Public.Files_to_promote
+
+    let promote_many = Procedures.Public.promote_many.decl
   end
 
   module Notification = struct
@@ -642,6 +651,7 @@ module Client = struct
       Builder.declare_notification t Procedures.Public.shutdown;
       Builder.declare_request t Procedures.Public.format_dune_file;
       Builder.declare_request t Procedures.Public.promote;
+      Builder.declare_request t Procedures.Public.promote_many;
       Builder.declare_request t Procedures.Public.build_dir;
       Builder.implement_notification t Procedures.Server_side.abort (fun () ->
         handler.abort);

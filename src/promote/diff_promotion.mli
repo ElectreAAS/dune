@@ -28,7 +28,7 @@ val finalize : unit -> unit
 
 (** Describe what files should be promoted. The second argument of [These] is a
     function that is called on files that cannot be promoted. *)
-type files_to_promote =
+type files_to_promote = Dune_rpc_private.Procedures.Public.Files_to_promote.t =
   | All
   | These of Path.Source.t list * (Path.Source.t -> unit)
 

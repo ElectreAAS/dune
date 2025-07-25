@@ -4,7 +4,7 @@ open Dune_rpc
 (** Internal RPC requests *)
 
 module Build_outcome_with_diagnostics : sig
-  type t =
+  type t = Dune_rpc.Procedures.Public.Build_outcome_with_diagnostics.t =
     | Success
     | Failure of Dune_engine.Compound_user_error.t list
 
@@ -28,7 +28,7 @@ end
 val build : (string list, Build_outcome_with_diagnostics.t) Decl.Request.t
 val status : (unit, Status.t) Decl.Request.t
 
-val promote
+(* val promote
   : ( Promote.Diff_promotion.files_to_promote
       , Build_outcome_with_diagnostics.t )
-      Decl.Request.t
+      Decl.Request.t *)

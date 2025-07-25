@@ -15,7 +15,7 @@ module Compound_user_error = struct
 end
 
 module Build_outcome_with_diagnostics = struct
-  type t =
+  type t = Dune_rpc.Procedures.Public.Build_outcome_with_diagnostics.t =
     | Success
     | Failure of Dune_engine.Compound_user_error.t list
 
@@ -91,8 +91,8 @@ module Build = struct
 
   let decl = Decl.Request.make ~method_:"build" ~generations:[ v1; v2 ]
 end
-
-module Promote = struct
+(*
+   module Promote = struct
   let on_missing fn =
     User_warning.emit
       [ Pp.paragraphf
@@ -124,8 +124,8 @@ module Promote = struct
   (* Not to be confused with `Dune_rpc_private.Procedures.Public.promote`,
      this has a more practical type and is only internal to dune. *)
   let decl = Decl.Request.make ~method_:"promote_many" ~generations:[ v1 ]
-end
+end *)
 
 let build = Build.decl
 let status = Status.decl
-let promote = Promote.decl
+(* let promote = Promote.decl *)

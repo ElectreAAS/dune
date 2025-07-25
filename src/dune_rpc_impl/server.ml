@@ -394,7 +394,7 @@ let handler (t : _ t Fdecl.t) handle : 'build_arg Dune_rpc_server.Handler.t =
       Promote.Diff_promotion.promote_files_registered_in_last_run files;
       Fiber.return Build_outcome_with_diagnostics.Success
     in
-    Handler.implement_request rpc Decl.promote f
+    Handler.implement_request rpc Dune_rpc.Procedures.Public.promote_many f
   in
   let () =
     let f _ path =

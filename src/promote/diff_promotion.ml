@@ -130,7 +130,7 @@ let group_by_targets db =
        ~f:(List.sort ~compare:(fun (x, _) (y, _) -> Path.Build.compare x y))
 ;;
 
-type files_to_promote =
+type files_to_promote = Dune_rpc_private.Procedures.Public.Files_to_promote.t =
   | All
   | These of Path.Source.t list * (Path.Source.t -> unit)
 

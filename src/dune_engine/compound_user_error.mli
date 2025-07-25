@@ -4,7 +4,7 @@
 
 open Import
 
-type t = private
+type t = Dune_rpc_private.Procedures.Public.Compound_user_error.t = private
   { main : User_message.t
   ; related : User_message.t list
   }

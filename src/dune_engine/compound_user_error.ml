@@ -1,14 +1,14 @@
 open Import
 
 module T : sig
-  type t = private
+  type t = Dune_rpc_private.Procedures.Public.Compound_user_error.t = private
     { main : User_message.t
     ; related : User_message.t list
     }
 
   val create : main:User_message.t -> related:User_message.t list -> t
 end = struct
-  type t =
+  type t = Dune_rpc_private.Procedures.Public.Compound_user_error.t =
     { main : User_message.t
     ; related : User_message.t list
     }
