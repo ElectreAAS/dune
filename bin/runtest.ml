@@ -49,13 +49,13 @@ let runtest_term =
            ~to_cwd:(Common.root common).to_cwd)
   | Error lock_held_by ->
     Rpc.Rpc_common.run_via_rpc
-      ~builder
-      ~common
-      ~config
+      builder
       lock_held_by
+      common
+      config
       (Rpc.Rpc_common.fire_request
          ~name:"runtest"
-         ~wait:true
+         ~wait:false
          Dune_rpc.Procedures.Public.runtest)
       dir_or_cram_test_paths
 ;;

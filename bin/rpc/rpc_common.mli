@@ -44,10 +44,10 @@ val warn_ignore_arguments : Dune_util.Global_lock.Lock_held_by.t -> unit
 
 (**  Schedule a fiber to run via RPC, wrapping any errors. *)
 val run_via_rpc
-  :  builder:Common.Builder.t
-  -> common:Common.t
-  -> config:Dune_config_file.Dune_config.t
+  :  Common.Builder.t
   -> Dune_util.Global_lock.Lock_held_by.t
+  -> Common.t
+  -> Dune_config_file.Dune_config.t
   -> ('a
       -> (Dune_rpc.Build_outcome_with_diagnostics.t, Dune_rpc.Response.Error.t) result
            Fiber.t)

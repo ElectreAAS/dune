@@ -20,7 +20,7 @@ starts immediately.
 
 Test that we can run a test while another instance of dune is running in watch
 mode:
-  $ dune runtest 2>&1 | sed 's/pid: [0-9]*/pid: PID/g'
+  $ dune runtest 2>&1
   Success
 
 Test that passing extra arguments to `dune runtest` prints a warning when

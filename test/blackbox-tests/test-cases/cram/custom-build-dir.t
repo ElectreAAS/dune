@@ -10,8 +10,6 @@ path
   >   $ dune runtest
   > EOF
 
-  $ dune rpc ping --wait
-
   $ DUNE_BUILD_DIR=$PWD/tmp dune runtest --auto-promote
   File "foo.t", line 1, characters 0-0:
   Error: Files
@@ -23,7 +21,11 @@ path
     $TESTCASE_ROOT/tmp/default/foo.t.corrected
     to foo.t.
   [1]
-  $ sed -E '/\(pid: [0-9]+\)/{s//(pid: ###)/; s/instance.*/.../g; q;}' foo.t
+  $ sed -E 's/[0-9]+\)/###)/g' foo.t
     $ echo "  $ echo bar" >bar.t
     $ dune runtest
-    Error: A running dune (pid: ###) ...
+    Warning:
+    Your build request is being forwarded to a running Dune instance (pid:
+    ###). Note that certain command line arguments may be ignored.
+    Error: RPC server not running.
+    [1]

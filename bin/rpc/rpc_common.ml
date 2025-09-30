@@ -84,9 +84,9 @@ let fire_request ~name ~wait request arg =
     ~f:(fun client -> request_exn client request arg)
 ;;
 
-let wrap_build_outcome_exn ~print_on_success f args () =
+let wrap_build_outcome_exn ~print_on_success f arg () =
   let open Fiber.O in
-  let+ response = f args in
+  let+ response = f arg in
   match response with
   | Error (error : Rpc_error.t) -> raise_rpc_error error
   | Ok Dune_rpc.Build_outcome_with_diagnostics.Success ->
@@ -118,11 +118,11 @@ let warn_ignore_arguments lock_held_by =
     ]
 ;;
 
-let run_via_rpc ~builder ~common ~config lock_held_by f args =
+let run_via_rpc builder lock_held_by common config request arg =
   if not (Common.Builder.equal builder Common.Builder.default)
   then warn_ignore_arguments lock_held_by;
   Scheduler.go_without_rpc_server
     ~common
     ~config
-    (wrap_build_outcome_exn ~print_on_success:true f args)
+    (wrap_build_outcome_exn ~print_on_success:true request arg)
 ;;

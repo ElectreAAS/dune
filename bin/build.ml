@@ -203,10 +203,10 @@ let build =
          perform the RPC call.
       *)
       Rpc.Rpc_common.run_via_rpc
-        ~builder
-        ~common
-        ~config
+        builder
         lock_held_by
+        common
+        config
         (Rpc.Group.Build.build ~wait:true)
         targets
     | Ok () ->

@@ -49,7 +49,7 @@ let run_fmt_command ~common ~config ~preview =
       Scheduler.go_without_rpc_server ~common ~config (fun () ->
         Rpc.Rpc_common.fire_request
           ~name:"format"
-          ~wait:true
+          ~wait:false
           Dune_rpc.Procedures.Public.format
           ())
     in
