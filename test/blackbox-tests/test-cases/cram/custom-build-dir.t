@@ -24,8 +24,7 @@ path
   $ sed -E 's/[0-9]+\)/###)/g' foo.t
     $ echo "  $ echo bar" >bar.t
     $ dune runtest
-    Warning:
-    Your build request is being forwarded to a running Dune instance (pid:
-    ###). Note that certain command line arguments may be ignored.
-    Error: RPC server not running.
+    Error: A running dune (pid: ###) instance has locked the build directory.
+    If this is not the case, please delete
+    "$TESTCASE_ROOT/tmp/.lock".
     [1]

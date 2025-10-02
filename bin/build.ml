@@ -142,14 +142,6 @@ let run_build_command ~(common : Common.t) ~config ~request =
     ~request
 ;;
 
-let build_via_rpc_server ~print_on_success ~targets =
-  Rpc.Rpc_common.wrap_build_outcome_exn
-    ~print_on_success
-    (Rpc.Group.Build.build ~wait:true)
-    targets
-    ()
-;;
-
 let build =
   let doc = "Build the given targets, or the default ones if none are given." in
   let man =
@@ -202,13 +194,20 @@ let build =
          an RPC server in the background to schedule the fiber which will
          perform the RPC call.
       *)
-      Rpc.Rpc_common.run_via_rpc
-        builder
-        lock_held_by
-        common
-        config
-        (Rpc.Group.Build.build ~wait:true)
-        targets
+      Scheduler.go_without_rpc_server ~common ~config (fun () ->
+        let open Fiber.O in
+        let targets = Rpc.Group.Build.prepare_targets targets in
+        let+ build_outcome =
+          Rpc.Rpc_common.fire_message
+            ~name:"build"
+            ~wait:false
+            ~lock_held_by
+            builder
+            (Rpc.Rpc_common.Request
+               (Dune_rpc.Decl.Request.witness Dune_rpc_impl.Decl.build))
+            targets
+        in
+        Rpc.Rpc_common.wrap_build_outcome_exn ~print_on_success:true build_outcome)
     | Ok () ->
       let request setup =
         Target.interpret_targets (Common.root common) config setup targets
