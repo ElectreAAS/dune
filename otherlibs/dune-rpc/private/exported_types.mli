@@ -251,7 +251,7 @@ end
 module Files_to_promote : sig
   type t =
     | All
-    | These of Stdune.Path.Source.t list * (Stdune.Path.Source.t -> unit)
+    | These of Stdune.Path.Source.t list * string option
 
   val sexp : t Conv.value
 end

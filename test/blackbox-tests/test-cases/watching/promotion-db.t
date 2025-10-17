@@ -26,7 +26,10 @@ Promoting a at this point does nothing, and we print a warning.
 
 This should be a warning for a and b.
   $ dune promote a.t b.t
-  Success
+  Nothing to promote for b.t.
+  Nothing to promote for a.t.
+  Error: Build failed with 2 errors.
+  [1]
 
 Now a is in the promotion database,
   $ build "(alias a)"
@@ -38,8 +41,12 @@ and c as well.
 
 This should be a success for a (and print nothing), and a warning for b.
   $ dune promote a.t b.t
-  Success
+  Nothing to promote for b.t.
+  Nothing to promote for a.t.
+  Error: Build failed with 2 errors.
+  [1]
 
+FIXME ambre: pick up from here.
 This is incorrect!
   $ cat a.t
     $ echo hello
@@ -57,14 +64,10 @@ C should still be in the database at this point, and promotion should work.
     hello
 
   $ stop_dune
-  Warning: Nothing to promote for a.t.
-  Warning: Nothing to promote for b.t.
   File "a.t", line 1, characters 0-0:
   Error: Files _build/default/a.t and _build/default/a.t.corrected differ.
   Had 1 error, waiting for filesystem changes...
   File "c.t", line 1, characters 0-0:
   Error: Files _build/default/c.t and _build/default/c.t.corrected differ.
   Had 1 error, waiting for filesystem changes...
-  Warning: Nothing to promote for a.t.
-  Warning: Nothing to promote for b.t.
   Promoting _build/default/c.t.corrected to c.t.

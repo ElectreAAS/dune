@@ -159,37 +159,47 @@ let do_promote db files_to_promote =
   match files_to_promote with
   | Dune_rpc_private.Files_to_promote.All ->
     Path.Source.Map.iteri by_targets ~f:promote_one;
-    []
-  | These (files, on_missing) ->
-    let by_targets =
+    [], None, []
+  | These (files, missing_msg) ->
+    let by_targets, missing =
       let files = Path.Source.Set.of_list files in
-      Path.Source.Set.fold files ~init:by_targets ~f:(fun fn map ->
-        match Path.Source.Map.find by_targets fn with
+      Path.Source.Set.fold files ~init:(by_targets, []) ~f:(fun fn (map, missing) ->
+        (* FIXME: I replaced [by_targets] with [map] here. Make sure that's correct *)
+        match Path.Source.Map.find map fn with
         | None ->
-          on_missing fn;
-          map
+          (* on_missing fn; *)
+          map, fn :: missing
         | Some srcs ->
           promote_one fn srcs;
-          Path.Source.Map.remove by_targets fn)
+          (* FIXME: Same thing here *)
+          Path.Source.Map.remove map fn, missing)
     in
-    Path.Source.Map.to_list by_targets
-    |> List.concat_map ~f:(fun (dst, srcs) ->
-      List.map srcs ~f:(fun (src, staging) -> { File.src; staging; dst }))
+    ( Path.Source.Map.to_list by_targets
+      |> List.concat_map ~f:(fun (dst, srcs) ->
+        List.map srcs ~f:(fun (src, staging) -> { File.src; staging; dst }))
+    , missing_msg
+    , missing )
 ;;
 
 let finalize () =
   let db =
     match !Dune_engine.Clflags.promote with
-    | Some Automatically -> do_promote !File.db All
+    | Some Automatically ->
+      let res, missing_msg, missing = do_promote !File.db All in
+      assert (List.is_empty res && Option.is_none missing_msg && List.is_empty missing);
+      res
     | Some Never | None -> !File.db
   in
   dump_db db
 ;;
 
+(* FIXME: change the type of this to return the warnings instead of just printing on (the server's) stdout
+maybe build_outcome.t? *)
 let promote_files_registered_in_last_run files_to_promote =
   let db = load_db () in
-  let db = do_promote db files_to_promote in
-  dump_db db
+  let remaining, missing_msg, missing = do_promote db files_to_promote in
+  dump_db remaining;
+  missing_msg, missing
 ;;
 
 let diff_for_file (file : File.t) =
@@ -201,26 +211,48 @@ let diff_for_file (file : File.t) =
 
 let filter_db files_to_promote db =
   match files_to_promote with
-  | Dune_rpc_private.Files_to_promote.All -> db
-  | These (files, on_missing) ->
-    List.filter_map files ~f:(fun file ->
-      let r = List.find db ~f:(fun (f : File.t) -> Path.Source.equal f.dst file) in
-      if Option.is_none r then on_missing file;
-      r)
+  | Dune_rpc_private.Files_to_promote.All -> List.map ~f:(fun file -> Left file) db, None
+  | These (paths, missing_msg) ->
+    ( List.map paths ~f:(fun path ->
+        let res = List.find db ~f:(fun (f : File.t) -> Path.Source.equal f.dst path) in
+        match res with
+        | Some file -> Left file
+        | None -> Right path)
+    , missing_msg )
 ;;
 
-let display files_to_promote =
+let sort_for_display files_to_promote =
   let open Fiber.O in
-  let files = load_db () |> filter_db files_to_promote in
+  let files, missing_msg = load_db () |> filter_db files_to_promote in
   let+ diff_opts =
-    Fiber.parallel_map files ~f:(fun file ->
-      let+ diff_opt = diff_for_file file in
-      match diff_opt with
-      | Ok diff -> Some (file, diff)
-      | Error _ -> None)
+    Fiber.parallel_map files ~f:(function
+      | Left file ->
+        let+ diff_opt = diff_for_file file in
+        (match diff_opt with
+         | Ok diff -> Some (file, diff)
+         | Error _ -> None)
+      | Right fn ->
+        (match missing_msg with
+         | None -> Fiber.return None
+         | Some msg ->
+           User_warning.emit
+             [ Pp.paragraphf "%s %s." msg (Path.Source.to_string_maybe_quoted fn) ];
+           Fiber.return None))
   in
   diff_opts
   |> List.filter_opt
   |> List.sort ~compare:(fun (file, _) (file', _) -> File.compare file file')
-  |> List.iter ~f:(fun (_file, diff) -> Print_diff.Diff.print diff)
+;;
+
+let display_diffs files_to_promote =
+  let open Fiber.O in
+  sort_for_display files_to_promote
+  >>| List.iter ~f:(fun (_file, diff) -> Print_diff.Diff.print diff)
+;;
+
+let display_files files_to_promote =
+  let open Fiber.O in
+  sort_for_display files_to_promote
+  >>| List.iter ~f:(fun (file, _diff) ->
+    Console.printf "%s" (File.source file |> Path.Source.to_string))
 ;;

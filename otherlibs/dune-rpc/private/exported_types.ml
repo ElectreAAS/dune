@@ -814,21 +814,15 @@ end
 module Files_to_promote = struct
   type t =
     | All
-    | These of Stdune.Path.Source.t list * (Stdune.Path.Source.t -> unit)
+    | These of Stdune.Path.Source.t list * string option
 
-  let on_missing fn =
-    Stdune.User_warning.emit
-      [ Pp.paragraphf
-          "Nothing to promote for %s."
-          (Stdune.Path.Source.to_string_maybe_quoted fn)
-      ]
-  ;;
+  let on_missing = "Nothing to promote for"
 
   let sexp =
     let open Conv in
     let to_ = function
       | [] -> All
-      | paths -> These (List.map ~f:Stdune.Path.Source.of_string paths, on_missing)
+      | paths -> These (List.map ~f:Stdune.Path.Source.of_string paths, Some on_missing)
     in
     let from = function
       | All -> []
