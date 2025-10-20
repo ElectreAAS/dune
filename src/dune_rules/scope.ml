@@ -166,7 +166,7 @@ module DB = struct
                        in
                        User_message.Annots.singleton
                          Compound_user_error.annot
-                         [ Compound_user_error.make ~main ~related ]
+                         [ Compound_user_error.make ~main ~related ~severity:Error ]
                      in
                      User_error.raise
                        ~annots
@@ -572,7 +572,7 @@ module DB = struct
                   in
                   User_message.Annots.singleton
                     Compound_user_error.annot
-                    [ Compound_user_error.make ~main ~related ]
+                    [ Compound_user_error.make ~main ~related ~severity:Error ]
                 in
                 User_error.raise
                   ~annots
