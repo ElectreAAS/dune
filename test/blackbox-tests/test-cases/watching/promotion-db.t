@@ -40,6 +40,10 @@ Now A and C are in the promotion database.
   Error: Build failed with 2 errors.
   [1]
 
+Make sure that the above build command has finished, and also that the server
+has finished dealing with the promotion database.
+  $ sleep 1
+
 This should be a success for A (and print nothing), and a warning for B.
   $ dune promote a.t b.t
   Warning: Nothing to promote for b.t.
