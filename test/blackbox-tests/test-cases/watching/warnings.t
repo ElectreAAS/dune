@@ -14,7 +14,6 @@ Nothing to promote for B
   >   hello
   > EOF
 
-
 Promoting A at this point does nothing, and we print a warning.
   $ dune promote a.t
   Warning: Nothing to promote for a.t.
